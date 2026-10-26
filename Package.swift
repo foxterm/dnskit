@@ -54,7 +54,6 @@ let package = Package(
         ),
         .target(
             name: "Bsdresolv",
-            publicHeadersPath: ".",
             linkerSettings: [
                 .linkedLibrary("resolv")
             ]
