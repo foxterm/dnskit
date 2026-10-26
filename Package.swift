@@ -34,7 +34,9 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/dns-inspector/IDNARules-Swift.git", revision: "7f47c398379e46f324bb82f803829026c48763d0"),
+        .package(
+            url: "https://github.com/dns-inspector/IDNARules-Swift.git",
+            revision: "7f47c398379e46f324bb82f803829026c48763d0")
     ],
     targets: [
         .target(
@@ -44,16 +46,18 @@ let package = Package(
                 .product(name: "IdnaRules", package: "IDNARules-Swift"),
             ],
             exclude: [
-                "WHOIS/update_whois.py",
+                "WHOIS/update_whois.py"
             ],
             linkerSettings: [
                 .linkedLibrary("resolv")
             ]
         ),
-        .systemLibrary(
+        .target(
             name: "Bsdresolv",
-            pkgConfig: nil,
-            providers: nil
+            publicHeadersPath: ".",
+            linkerSettings: [
+                .linkedLibrary("resolv")
+            ]
         ),
         .testTarget(
             name: "DNSKitTests",
@@ -67,6 +71,6 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("resolv")
             ]
-        )
+        ),
     ]
 )
