@@ -34,7 +34,7 @@ public struct RDAPClient: Sendable {
     /// - Returns: Returns the RDAP response data
     /// - Throws: Will throw if unable to perform the lookup
     ///
-    /// > Tip: RDAP data is always returned as a pretty-printed JSON string.
+    /// > Tip: RDAP data is always returned as a WHOIS-style human-readable formatted string.
     @available(iOS 13.0, macOS 10.15, *)
     public static func lookup(_ domain: String) async throws -> [RDAPReply] {
         return try await withCheckedThrowingContinuation { continuation in
@@ -49,7 +49,7 @@ public struct RDAPClient: Sendable {
     ///   - domain: The domain name to query
     ///   - complete: Callback called when the lookup has completed with a result or an error.
     ///
-    /// > Tip: RDAP data is always returned as a pretty-printed JSON string.
+    /// > Tip: RDAP data is always returned as a WHOIS-style human-readable formatted string.
     public static func lookup(_ domain: String, complete: @Sendable @escaping (Result<[RDAPReply], RDAPError>) -> Void) {
         let (oBaseURL, oBareDomain) = RDAPClient.getLookupHost(for: domain)
         guard let baseURL = oBaseURL else {
@@ -124,18 +124,20 @@ public struct RDAPClient: Sendable {
                 return
             }
 
-            // Validate the response is JSON and pretty-print it so the reply
-            // data is human-readable, matching the WHOIS reply convention.
+            // Validate the response is JSON and format it into a WHOIS-style
+            // human-readable representation.
             do {
                 let object = try JSONSerialization.jsonObject(with: data)
-                let prettyData = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
-                guard let prettyString = String(data: prettyData, encoding: .utf8) else {
-                    printError("[\(#fileID):\(#line)] Unable to decode RDAP response from \(url)")
-                    complete(.failure(.invalidResponse("Unable to decode RDAP response")))
-                    return
+                let formatted: String
+                if let dict = object as? [String: Any] {
+                    formatted = RDAPFormatter.format(domainObject: dict)
+                } else if let prettyData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) {
+                    formatted = String(data: prettyData, encoding: .utf8) ?? ""
+                } else {
+                    formatted = ""
                 }
-                printDebug("[\(#fileID):\(#line)] RDAP response: \(prettyString)")
-                complete(.success([RDAPReply(server: requestURLString, data: prettyString)]))
+                printDebug("[\(#fileID):\(#line)] RDAP response: \(formatted)")
+                complete(.success([RDAPReply(server: requestURLString, data: formatted)]))
             } catch {
                 printError("[\(#fileID):\(#line)] Invalid RDAP response from \(url): \(error)")
                 complete(.failure(.invalidResponse(error.localizedDescription)))
