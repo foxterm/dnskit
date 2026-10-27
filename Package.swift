@@ -46,7 +46,8 @@ let package = Package(
                 .product(name: "IdnaRules", package: "IDNARules-Swift"),
             ],
             exclude: [
-                "WHOIS/update_whois.py"
+                "WHOIS/update_whois.py",
+                "WHOIS/update_rdap.py"
             ],
             linkerSettings: [
                 .linkedLibrary("resolv")

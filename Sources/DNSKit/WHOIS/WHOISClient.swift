@@ -42,11 +42,22 @@ public struct WHOISClient: Sendable {
     ///   - complete: Callback called when the lookup has completed with a result or an error.
     ///
     /// > Tip: WHOIS data is always returned as a human-readable formatted string.
+    /// > Note: If the domain's TLD does not support WHOIS, the lookup will automatically
+    /// > fall back to an RDAP query and the RDAP reply will be returned as a `WHOISReply`.
     public static func lookup(_ domain: String, complete: @Sendable @escaping (Result<[WHOISReply], WHOISError>) -> Void) {
         let (oServer, oBareDomain) = WHOISClient.getLookupHost(for: domain)
         guard let server = oServer else {
-            printError("[\(#fileID):\(#line)] Unsuported TLD for WHOIS lookup: \(domain)")
-            complete(.failure(.whoisNotSupported))
+            // WHOIS is not supported for this TLD, fall back to an RDAP lookup
+            printDebug("[\(#fileID):\(#line)] WHOIS not supported for \(domain), falling back to RDAP lookup")
+            RDAPClient.lookup(domain) { result in
+                switch result {
+                case .success(let replies):
+                    complete(.success(replies.map { WHOISReply(server: $0.server, data: $0.data) }))
+                case .failure(let error):
+                    printError("[\(#fileID):\(#line)] Error performing RDAP fallback lookup for \(domain): \(error)")
+                    complete(.failure(.rdapLookupFailed(error.localizedDescription)))
+                }
+            }
             return
         }
         guard let bareDomain = oBareDomain else {

@@ -58,8 +58,24 @@ public enum WHOISError: Error, Sendable {
     case whoisNotSupported
     /// The number of redirects exceeded the maximum limit
     case tooManyRedirects
+    /// The RDAP fallback lookup failed. More details are available.
+    case rdapLookupFailed(String)
     /// The user cancelled the request
     case userCancelled
+}
+
+/// All possible RDAP-related errors
+public enum RDAPError: Error, Sendable {
+    /// The connection to the target was unsuccessful. More details are available.
+    case connectionError(Error)
+    /// The remote host took too long to respond
+    case timedOut
+    /// RDAP is not supported on this TLD
+    case rdapNotSupported
+    /// The response from the server was not expected. More details are available.
+    case invalidResponse(String)
+    /// The server returned no data
+    case emptyResponse
 }
 
 /// All possible DNSSEC-related errors
