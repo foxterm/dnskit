@@ -32,10 +32,19 @@ final class WHOISTests: XCTestCase {
         getLookupHostForDomain("wikipedia.org", expectedServer: "whois.pir.org", expectedBare: "wikipedia.org")
         getLookupHostForDomain("example.example.example.com", expectedServer: "whois.verisign-grs.com", expectedBare: "example.com")
         getLookupHostForDomain("example.cn.com", expectedServer: "whois.centralnic.net", expectedBare: "example.cn.com")
-        getLookupHostForDomain("example.app", expectedServer: "whois.nic.app", expectedBare: "example.app")
-        getLookupHostForDomain("example.example.example.app", expectedServer: "whois.nic.app", expectedBare: "example.app")
-        getLookupHostForDomain("example.africa", expectedServer: "whois.nic.africa", expectedBare: "example.africa")
-        getLookupHostForDomain("africa", expectedServer: "whois.nic.africa", expectedBare: "africa")
+        getLookupHostForDomain("example.uk.co", expectedServer: "whois.uk.co", expectedBare: "example.uk.co")
+        // .co.uk is not explicitly listed, the longest matching suffix is .uk
+        getLookupHostForDomain("example.co.uk", expectedServer: "whois.nic.uk", expectedBare: "co.uk")
+
+        // New gTLDs are not strictly matched against a WHOIS server, they fall
+        // back to RDAP instead of guessing a whois.nic.{tld} server.
+        let (appServer, appBare) = WHOISClient.getLookupHost(for: "example.app")
+        XCTAssertNil(appServer)
+        XCTAssertNil(appBare)
+
+        let (africaServer, africaBare) = WHOISClient.getLookupHost(for: "example.africa")
+        XCTAssertNil(africaServer)
+        XCTAssertNil(africaBare)
 
         let (comServer, comBare) = WHOISClient.getLookupHost(for: "com")
         XCTAssertNil(comServer)

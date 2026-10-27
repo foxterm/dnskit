@@ -42,9 +42,10 @@ public struct WHOISClient: Sendable {
     ///   - complete: Callback called when the lookup has completed with a result or an error.
     ///
     /// > Tip: WHOIS data is always returned as a human-readable formatted string.
-    /// > Note: If the domain's TLD does not support WHOIS, or the WHOIS query produces
-    /// > no data, the lookup will automatically fall back to an RDAP query and the
-    /// > RDAP reply will be returned as a `WHOISReply`.
+    /// > Note: WHOIS servers are only used when the TLD is explicitly listed in the
+    /// > WHOIS server database. If there is no match, or the WHOIS query produces no
+    /// > data, the lookup falls back directly to an RDAP query and the RDAP reply is
+    /// > returned as a `WHOISReply`.
     public static func lookup(_ domain: String, complete: @Sendable @escaping (Result<[WHOISReply], WHOISError>) -> Void) {
         let (oServer, oBareDomain) = WHOISClient.getLookupHost(for: domain)
         guard let server = oServer else {
@@ -183,6 +184,11 @@ public struct WHOISClient: Sendable {
     }
 
     /// Get the WHOIS server address for the given domain name.
+    ///
+    /// > Important: This performs a strict match against the list of known WHOIS servers.
+    /// > Only TLDs with an explicitly listed server are returned. TLDs that are not
+    /// > listed (such as most new gTLDs, which are often RDAP-only) return `nil`, and
+    /// > the caller should fall back to an RDAP lookup instead of guessing a server.
     /// - Parameter domain: The domain name to query for
     /// - Returns: A tuple of two optional strings. The first is the lookup server host address, the second is the bare URL for querying (without any subdomains).
     public static func getLookupHost(for domain: String) -> (String?, String?) {
@@ -196,33 +202,19 @@ public struct WHOISClient: Sendable {
         }
 
         var parts = input.split(separator: ".")
-        guard let last = parts.last else {
-            return (nil, nil)
-        }
-        var tld = String(last)
-
-        // First check if the domain uses a gTLD. gTLD's are always one-level
-        let newGtlds = WHOISClient.getNewGtlds()
-        for gtld in newGtlds {
-            if gtld != tld {
-                continue
-            }
-
-            let bareDomain = parts.count >= 2 ? "\(parts[parts.count-2]).\(tld)" : String(parts[0])
-            return ("whois.nic.\(tld)", bareDomain)
-        }
 
         let tldServ = WHOISClient.getTldServ()
 
-        // Next iterate through each part of the input domain name, cutting off one part each time until we find a match
-        // or we've run out of parts of the name.
+        // Strictly iterate through each part of the input domain name, cutting off one
+        // part each time until we find an explicitly listed WHOIS server or we've run
+        // out of parts of the name.
         while true {
             let partRemoved = parts.remove(at: 0)
             if parts.count == 0 {
                 break
             }
 
-            tld = ".\(parts.joined(separator: "."))"
+            let tld = ".\(parts.joined(separator: "."))"
 
             if let serverName = tldServ[tld] {
                 let bareName = "\(partRemoved)\(tld)"

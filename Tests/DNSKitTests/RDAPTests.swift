@@ -55,12 +55,12 @@ final class RDAPTests: XCTestCase {
         XCTAssertTrue(result.count > 0)
     }
 
-    func testWHOISFallbackToRDAPWhenWHOISFails() async throws {
-        // The .app TLD has a WHOIS server entry (whois.nic.app) but Google
-        // Registry does not actually run a port 43 WHOIS service, so the
-        // WHOIS query fails and the lookup must fall back to RDAP.
+    func testWHOISStrictMatchFallsBackToRDAP() async throws {
+        // The .app TLD is a Google Registry gTLD that does not run a WHOIS
+        // service. It is not strictly matched to a WHOIS server, so the
+        // lookup falls back directly to RDAP without attempting WHOIS.
         let (server, _) = WHOISClient.getLookupHost(for: "foxterm.app")
-        XCTAssertEqual(server, "whois.nic.app")
+        XCTAssertNil(server)
 
         let result = try await WHOISClient.lookup("foxterm.app")
         XCTAssertTrue(result.count > 0)
