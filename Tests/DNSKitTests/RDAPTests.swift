@@ -133,10 +133,11 @@ final class RDAPTests: XCTestCase {
     }
 
     func testWHOISFallbackToRDAP() async throws {
-        // The .web TLD has no WHOIS server, so the WHOIS lookup should fall
-        // back to an RDAP lookup and return the RDAP reply as a WHOISReply.
+        // The .web TLD has no WHOIS server, so the lookup host falls back
+        // to the RDAP server and the WHOIS lookup returns the RDAP reply
+        // as a WHOISReply.
         let (server, _) = WHOISClient.getLookupHost(for: "nic.web")
-        XCTAssertNil(server)
+        XCTAssertEqual(server, "https://tld-rdap.verisign.com/web/v1/")
 
         let result = try await WHOISClient.lookup("nic.web")
         XCTAssertTrue(result.count > 0)
@@ -145,9 +146,10 @@ final class RDAPTests: XCTestCase {
     func testWHOISStrictMatchFallsBackToRDAP() async throws {
         // The .app TLD is a Google Registry gTLD that does not run a WHOIS
         // service. It is not strictly matched to a WHOIS server, so the
-        // lookup falls back directly to RDAP without attempting WHOIS.
+        // lookup host falls back to the RDAP server and the lookup runs
+        // against RDAP without attempting WHOIS.
         let (server, _) = WHOISClient.getLookupHost(for: "foxterm.app")
-        XCTAssertNil(server)
+        XCTAssertEqual(server, "https://pubapi.registry.google/rdap/")
 
         let result = try await WHOISClient.lookup("foxterm.app")
         XCTAssertTrue(result.count > 0)

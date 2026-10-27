@@ -36,24 +36,32 @@ final class WHOISTests: XCTestCase {
         // .co.uk is not explicitly listed, the longest matching suffix is .uk
         getLookupHostForDomain("example.co.uk", expectedServer: "whois.nic.uk", expectedBare: "co.uk")
 
-        // New gTLDs are not strictly matched against a WHOIS server, they fall
-        // back to RDAP instead of guessing a whois.nic.{tld} server.
-        let (appServer, appBare) = WHOISClient.getLookupHost(for: "example.app")
-        XCTAssertNil(appServer)
-        XCTAssertNil(appBare)
+        // New gTLDs are not strictly matched against a WHOIS server, so the
+        // lookup host falls back to the RDAP server for the TLD.
+        getLookupHostForDomain("example.app", expectedServer: "https://pubapi.registry.google/rdap/", expectedBare: "example.app")
+        getLookupHostForDomain("example.africa", expectedServer: "https://rdap.nic.africa/rdap/", expectedBare: "example.africa")
 
-        let (africaServer, africaBare) = WHOISClient.getLookupHost(for: "example.africa")
-        XCTAssertNil(africaServer)
-        XCTAssertNil(africaBare)
-
+        // A bare TLD has no WHOIS server but the RDAP server is returned.
         let (comServer, comBare) = WHOISClient.getLookupHost(for: "com")
-        XCTAssertNil(comServer)
-        XCTAssertNil(comBare)
+        XCTAssertEqual(comServer, "https://rdap.verisign.com/com/v1/")
+        XCTAssertEqual(comBare, "com")
 
         // lmao please im begging you somebody register acab as a gtld
         let (server, bare) = WHOISClient.getLookupHost(for: "blm.acab")
         XCTAssertNil(server)
         XCTAssertNil(bare)
+    }
+
+    func testWhoisLookupHostStrictMatch() {
+        // The strict WHOIS matching returns nil for TLDs without an
+        // explicitly listed server, even when RDAP covers them.
+        let (appServer, appBare) = WHOISClient.whoisLookupHost(for: "example.app")
+        XCTAssertNil(appServer)
+        XCTAssertNil(appBare)
+
+        let (comServer, comBare) = WHOISClient.whoisLookupHost(for: "com")
+        XCTAssertNil(comServer)
+        XCTAssertNil(comBare)
     }
 
     func testWHOISLookup() async throws {

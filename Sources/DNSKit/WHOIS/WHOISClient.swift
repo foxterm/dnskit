@@ -47,7 +47,7 @@ public struct WHOISClient: Sendable {
     /// > data, the lookup falls back directly to an RDAP query and the RDAP reply is
     /// > returned as a `WHOISReply`.
     public static func lookup(_ domain: String, complete: @Sendable @escaping (Result<[WHOISReply], WHOISError>) -> Void) {
-        let (oServer, oBareDomain) = WHOISClient.getLookupHost(for: domain)
+        let (oServer, oBareDomain) = WHOISClient.whoisLookupHost(for: domain)
         guard let server = oServer else {
             // WHOIS is not supported for this TLD, fall back to an RDAP lookup
             printDebug("[\(#fileID):\(#line)] WHOIS not supported for \(domain), falling back to RDAP lookup")
@@ -183,15 +183,32 @@ public struct WHOISClient: Sendable {
         connection.start(queue: DispatchQueue.global(qos: .userInitiated))
     }
 
+    /// Get the lookup host for the given domain name.
+    ///
+    /// If the TLD has an explicitly listed WHOIS server, the WHOIS server is returned.
+    /// If WHOIS is not supported for the TLD, this falls back to the RDAP server base
+    /// URL for the domain, so callers always get a usable lookup host.
+    /// - Parameter domain: The domain name to query for
+    /// - Returns: A tuple of two optional strings. The first is the lookup server host
+    /// address (either a WHOIS host or an RDAP base URL), the second is the bare URL
+    /// for querying (without any subdomains).
+    public static func getLookupHost(for domain: String) -> (String?, String?) {
+        let whoisHost = WHOISClient.whoisLookupHost(for: domain)
+        if whoisHost.0 != nil {
+            return whoisHost
+        }
+
+        // WHOIS is not supported for this TLD, fall back to an RDAP lookup host
+        return RDAPClient.getLookupHost(for: domain)
+    }
+
     /// Get the WHOIS server address for the given domain name.
     ///
     /// > Important: This performs a strict match against the list of known WHOIS servers.
     /// > Only TLDs with an explicitly listed server are returned. TLDs that are not
     /// > listed (such as most new gTLDs, which are often RDAP-only) return `nil`, and
     /// > the caller should fall back to an RDAP lookup instead of guessing a server.
-    /// - Parameter domain: The domain name to query for
-    /// - Returns: A tuple of two optional strings. The first is the lookup server host address, the second is the bare URL for querying (without any subdomains).
-    public static func getLookupHost(for domain: String) -> (String?, String?) {
+    internal static func whoisLookupHost(for domain: String) -> (String?, String?) {
         if domain.count == 0 || domain.count > 250 {
             return (nil, nil)
         }
