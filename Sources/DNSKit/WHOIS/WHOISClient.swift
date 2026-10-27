@@ -42,22 +42,15 @@ public struct WHOISClient: Sendable {
     ///   - complete: Callback called when the lookup has completed with a result or an error.
     ///
     /// > Tip: WHOIS data is always returned as a human-readable formatted string.
-    /// > Note: If the domain's TLD does not support WHOIS, the lookup will automatically
-    /// > fall back to an RDAP query and the RDAP reply will be returned as a `WHOISReply`.
+    /// > Note: If the domain's TLD does not support WHOIS, or the WHOIS query produces
+    /// > no data, the lookup will automatically fall back to an RDAP query and the
+    /// > RDAP reply will be returned as a `WHOISReply`.
     public static func lookup(_ domain: String, complete: @Sendable @escaping (Result<[WHOISReply], WHOISError>) -> Void) {
         let (oServer, oBareDomain) = WHOISClient.getLookupHost(for: domain)
         guard let server = oServer else {
             // WHOIS is not supported for this TLD, fall back to an RDAP lookup
             printDebug("[\(#fileID):\(#line)] WHOIS not supported for \(domain), falling back to RDAP lookup")
-            RDAPClient.lookup(domain) { result in
-                switch result {
-                case .success(let replies):
-                    complete(.success(replies.map { WHOISReply(server: $0.server, data: $0.data) }))
-                case .failure(let error):
-                    printError("[\(#fileID):\(#line)] Error performing RDAP fallback lookup for \(domain): \(error)")
-                    complete(.failure(.rdapLookupFailed(error.localizedDescription)))
-                }
-            }
+            WHOISClient.performRDAPFallback(domain: domain, complete: complete)
             return
         }
         guard let bareDomain = oBareDomain else {
@@ -76,9 +69,12 @@ public struct WHOISClient: Sendable {
             WHOISClient.lookup(bareDomain, server: server, depth: 1, replies: replies) { result in
                 didComplete.If(false) {
                     if replies.Count() > 0 {
+                        // WHOIS returned usable data
                         complete(.success(replies.Get()))
                     } else {
-                        complete(result)
+                        // WHOIS produced no data, fall back to an RDAP lookup
+                        printDebug("[\(#fileID):\(#line)] WHOIS lookup for \(domain) produced no data, falling back to RDAP lookup")
+                        WHOISClient.performRDAPFallback(domain: domain, complete: complete)
                     }
                     return true
                 }
@@ -87,9 +83,21 @@ public struct WHOISClient: Sendable {
 
             _ = semaphore.wait(timeout: DispatchTime.now().adding(seconds: 15))
             didComplete.If(false) {
-                printError("[\(#fileID):\(#line)] Error sending WHOIS query to \(server): timed out")
-                complete(.failure(.timedOut))
+                printError("[\(#fileID):\(#line)] Error sending WHOIS query to \(server): timed out, falling back to RDAP lookup")
+                WHOISClient.performRDAPFallback(domain: domain, complete: complete)
                 return true
+            }
+        }
+    }
+
+    internal static func performRDAPFallback(domain: String, complete: @Sendable @escaping (Result<[WHOISReply], WHOISError>) -> Void) {
+        RDAPClient.lookup(domain) { result in
+            switch result {
+            case .success(let replies):
+                complete(.success(replies.map { WHOISReply(server: $0.server, data: $0.data) }))
+            case .failure(let error):
+                printError("[\(#fileID):\(#line)] Error performing RDAP fallback lookup for \(domain): \(error)")
+                complete(.failure(.rdapLookupFailed(error.localizedDescription)))
             }
         }
     }
